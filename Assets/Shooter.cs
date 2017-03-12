@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class Shooter : MonoBehaviour {
 
+    // todo all physics should scale with world scaler
+
     // gameplay
     public MainGame.Army m_myArmy = MainGame.Army.Army_None;
 
@@ -25,7 +27,10 @@ public class Shooter : MonoBehaviour {
 
     private Rigidbody2D m_body;
     private SpriteRenderer m_render;
+    private MainCameraController m_world;
     private float m_speed;
+
+    private bool m_isPlayer;
 
     private Transform m_myTransform;
 
@@ -45,6 +50,9 @@ public class Shooter : MonoBehaviour {
         m_scaleSpeed = 0.01f;
         m_maxScaling = 0.7f;
         m_minScaling = 0.35f;
+
+        m_world = GameObject.Find("MainCamera").GetComponent<MainCameraController>();
+        m_isPlayer = m_myArmy == MainGame.Army.Army_Blue;
     }
 
     public void PostStart()
@@ -62,19 +70,41 @@ public class Shooter : MonoBehaviour {
 
         UpdateUI();
 
-        if (Input.GetMouseButtonDown(0))
+        if (m_isPlayer)
+        {
+            if (Input.GetMouseButtonDown(0))
+            {
+                if (!m_isShooting)
+                {
+                    PrepareShoot();
+                }
+            }
+
+            if (Input.GetMouseButtonUp(0))
+            {
+                if (m_isShooting)
+                {
+                    DoShoot();
+                }
+            }
+        }
+        else
         {
             if (!m_isShooting)
             {
-                PrepareShoot();
+                float rnd = Random.Range(-1.0f, 1.0f);
+                if (rnd > 0.5f)
+                {
+                    PrepareShoot();
+                }
             }
-        }
-
-        if (Input.GetMouseButtonUp(0))
-        {
-            if (m_isShooting)
+            else
             {
-                DoShoot();
+                float rnd = Random.Range(-1.0f, 1.0f);
+                if (rnd > 0)
+                {
+                    DoShoot();
+                }
             }
         }
 
@@ -98,10 +128,20 @@ public class Shooter : MonoBehaviour {
             ScaleTo(m_minScaling);
         }
 
+        float moveVertical = 0;
+        float moveHorizontal = 0;
+        if (m_isPlayer)
+        {
+            moveVertical = Input.GetAxis("Vertical");
+            moveHorizontal = Input.GetAxis("Horizontal");
+        }
+        else // move randomly
+        {
+            moveHorizontal = Random.Range(-1.0f, 1.0f);
+        }
 
-        float moveVertical = Input.GetAxis("Vertical");
         if (!moveVertical.Equals(0))
-        {   
+        {
             if (m_currentForce.y > 1.5f && moveVertical > 0)
             {
                 moveVertical = 0.0f;
@@ -112,18 +152,34 @@ public class Shooter : MonoBehaviour {
                 moveVertical = 0.0f;
             }
 
-            m_currentForce += (new Vector2(0, moveVertical)) * m_speed;
+            //m_currentForce += (new Vector2(0, moveVertical)) * m_speed;
+            //m_body.AddForce(m_currentForce);
+        }
+
+        if (!moveHorizontal.Equals(0))
+        {
+            if (m_currentForce.x > 1.5f && moveHorizontal > 0)
+            {
+                moveHorizontal = 0.0f;
+            }
+
+            if (m_currentForce.x < -1.5f && moveHorizontal < 0)
+            {
+                moveHorizontal = 0.0f;
+            }
+
+            m_currentForce += (new Vector2(moveHorizontal, 0)) * m_speed;
             m_body.AddForce(m_currentForce);
         }
 
         // reistrict obj inside border
-        if (m_myTransform.position.y < -4.8f)
+        if (m_myTransform.position.x < m_world.s_worldBoarderLeft)
         {
-            m_myTransform.position = new Vector3(m_myTransform.position.x, -4.8f, m_myTransform.position.z);
+            m_myTransform.position = new Vector3(m_world.s_worldBoarderLeft, m_myTransform.position.y, m_myTransform.position.z);
         }
-        else if (m_myTransform.position.y > 5.0f)
+        else if (m_myTransform.position.x > m_world.s_worldBoarderRight)
         {
-            m_myTransform.position = new Vector3(m_myTransform.position.x, 5.0f, m_myTransform.position.z);
+            m_myTransform.position = new Vector3(m_world.s_worldBoarderRight, m_myTransform.position.y, m_myTransform.position.z);
         }
     }
 
@@ -142,7 +198,7 @@ public class Shooter : MonoBehaviour {
     void PrepareShoot()
     {
         // check cooldown
-        if (Time.time < (m_lastShoointgTime + m_shootingCooldown))
+        if (IsInShootCooldown())
         {
             return;
         }
@@ -156,13 +212,36 @@ public class Shooter : MonoBehaviour {
         return (Time.time < (m_lastShoointgTime + m_shootingCooldown));
     }
 
-    void DoShoot()
+    Vector3 GetShootDir()
     {
-        m_shootEndPos = Camera.main.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, 10.0f));
+        Vector3 shootingDir = Vector3.zero;
+        if (m_isPlayer)
+        {
+            m_shootEndPos = Camera.main.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, 10.0f));
 
-        Vector3 shootingDir = m_shootEndPos - m_shootStartPos;
+            shootingDir = m_shootEndPos - m_shootStartPos;
+        }
+        else
+        {
+            // random dir
+            float shootX = Random.Range(m_world.s_worldBoarderLeft, m_world.s_worldBoarderRight);
+            float shootY = 0;
+            shootingDir = new Vector3(shootX, shootY, 0.0f) - m_shootStartPos;
+        }
+
         shootingDir.Normalize();
         shootingDir = shootingDir * m_shootingStrength * Time.maximumDeltaTime;
+
+        return shootingDir;
+    }
+
+    void DoShoot()
+    {
+        Vector3 shootingDir = GetShootDir();
+        if (shootingDir == Vector3.zero)
+        {
+            return;
+        }
 
         //Debug.Log("shoot dir:" + shootingDir);
 
@@ -184,15 +263,15 @@ public class Shooter : MonoBehaviour {
 
     private Vector3 GetFiringPosition(Vector3 parentPos, float parentScale)
     {
-        Vector3 firingPointOffset = new Vector3(parentScale * 0.5f / 0.35f, 0.0f, 0.0f);
+        Vector3 firingPointOffset = new Vector3(0.0f, parentScale * 0.5f / 0.35f, 0.0f);
 
         if (m_myArmy == MainGame.Army.Army_Red)
         {
-            return parentPos + firingPointOffset;
+            return parentPos - firingPointOffset;
         }
         else if (m_myArmy == MainGame.Army.Army_Blue)
         {
-            return parentPos - firingPointOffset;
+            return parentPos + firingPointOffset;
         }
         else
         {

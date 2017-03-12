@@ -25,9 +25,9 @@ public class MainGame : MonoBehaviour {
 
         m_scoreUi = GameObject.Find("Canvas/Score").GetComponent<Text>();
     }
-	
-	// Update is called once per frame
-	void Update () {
+
+    // Update is called once per frame
+    void Update () {
 		
 	}
 
@@ -52,6 +52,9 @@ public class MainGame : MonoBehaviour {
 
     private void CreateShooter(Army army)
     {
+        GameObject cameraObj = GameObject.Find("MainCamera");
+        MainCameraController controller = cameraObj.GetComponent<MainCameraController>();
+
         GameObject shooter = GameObject.Find("Shooter");
 
         Vector3 position = Vector3.zero;
@@ -59,14 +62,14 @@ public class MainGame : MonoBehaviour {
         string name = "";
         if (army == Army.Army_Red)
         {
-            position = new Vector3(-10.0f, 0.0f, 0.0f);
+            position = controller.WorldSpaceToUnitSpace(new Vector3(0.0f, 7.0f, 0.0f));
             rotation = new Quaternion(0, 0, 0, 35);
 
             name = "red";
         }
         else if (army == Army.Army_Blue)
         {
-            position = new Vector3(10.0f, 0.0f, 0.0f);
+            position = controller.WorldSpaceToUnitSpace(new Vector3(0.0f, -7.0f, 0.0f));
             rotation = new Quaternion(0, 0, 0, 155);
 
             name = "blue";
